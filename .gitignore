@@ -1,0 +1,19 @@
+# PyInstaller 빌드 산출물
+build/
+dist/
+*.exe
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Claude Code 로컬 설정
+.claude/settings.local.json
+
+# OS
+Thumbs.db
+desktop.ini

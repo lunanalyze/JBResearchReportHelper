@@ -1,0 +1,39 @@
+[국가기관]
+1. 금융감독원 보도자료
+https://www.fss.or.kr/fss/bbs/B0000188/list.do?menuNo=200218&bbsId=&cl1Cd=&pageIndex=1&sdate=&edate=&searchCnd=1&searchWrd=
+
+2. 금융위원회 보도자료
+https://www.fsc.go.kr/no010101?curPage=1
+
+3. 한국은행 뉴스/자료
+https://www.bok.or.kr/portal/singl/newsData/list.do?pageIndex=1&targetDepth=&menuNo=201150&syncMenuChekKey=5&depthSubMain=&subMainAt=&searchCnd=1&searchKwd=&depth2=200038&depth2=201156&date=&sdate=&edate=&sort=1&pageUnit=10
+
+4. 한국금융연구원 금융브리프
+https://www.kif.re.kr/kif4/publication/pub_list?mid=20
+
+[금융연구소]
+1. 하나금융연구소
+   (1) 연구보고서
+   https://www.hanaif.re.kr/boardList.do?menuId=MN1000&tabMenuId=N
+   (2) 정기보고서
+   https://www.hanaif.re.kr/boardList.do?menuId=MN2000&tabMenuId=MN2100
+
+2. KB경영연구소 연구보고서
+https://www.kbfg.com/kbresearch/report/reportList.do
+
+3. KDB미래전략연구소
+https://rd.kdb.co.kr/index.jsp
+   (1) 조사연구
+      1) 이슈분석
+      2) 개발금융연구자료
+
+   (2) 동향분석
+      1) 경제동향
+      2) 금융시장
+      3) 산업동향
+
+4. 우리금융경영연구소
+   (1) 연구보고서
+   https://www.wfri.re.kr/ko/web/research_report/research_report.php
+   (2) 정기간행물 동남아 개괄 Review
+   https://www.wfri.re.kr/ko/web/serial/eastSouthAsia.php
