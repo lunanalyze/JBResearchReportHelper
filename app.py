@@ -26,6 +26,7 @@ sys.dont_write_bytecode = True
 
 import collector
 import paths
+import updater
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -141,6 +142,105 @@ INDEX_HTML = r"""<!doctype html>
       font-weight: 700;
       letter-spacing: 0;
     }
+    /* 업데이트 알림 — 켜자마자 모달로 막으면 "업무 보러 켰는데 방해받는다"가 된다.
+       배너는 눈에 들어오지만 무시할 수 있고, 닫아도 다음 버전에는 다시 뜬다. */
+    .update-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 24px;
+      background: #eef4ff;
+      border-bottom: 1px solid #c7ddff;
+      font-size: 13px;
+    }
+    .update-bar[hidden] { display: none; }
+    .update-mark {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .update-copy {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .update-copy strong { font-weight: 800; }
+    .update-muted { color: var(--muted); }
+    .update-dismiss {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      background: transparent;
+      border-color: transparent;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1;
+    }
+    .update-dismiss:hover { background: #dbe7ff; }
+    .update-modal {
+      width: min(520px, 100%);
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+    .update-body {
+      padding: 0 18px 18px;
+      overflow: auto;
+    }
+    .update-notes {
+      white-space: pre-wrap;
+      max-height: 190px;
+      overflow: auto;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .update-notes[hidden] { display: none; }
+    .update-guide {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .update-guide[hidden] { display: none; }
+    .update-progress {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+    .update-progress[hidden] { display: none; }
+    .update-spinner {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      border: 2px solid #c7ddff;
+      border-top-color: var(--brand);
+      animation: update-spin 0.8s linear infinite;
+    }
+    @keyframes update-spin { to { transform: rotate(360deg); } }
+    .update-error {
+      margin-top: 12px;
+      color: #b42318;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+    .update-error[hidden] { display: none; }
+    /* .modal-actions 가 display:flex 라 [hidden] 만으로는 안 숨는다. */
+    .update-actions { justify-content: flex-end; }
+    .update-actions[hidden] { display: none; }
     main { padding: 18px 24px 28px; }
     .controls {
       display: grid;
@@ -1066,6 +1166,12 @@ INDEX_HTML = r"""<!doctype html>
       </div>
     </div>
   </header>
+  <div class="update-bar" id="updateBar" hidden>
+    <span class="update-mark" aria-hidden="true">↑</span>
+    <div class="update-copy" id="updateBarCopy"></div>
+    <button class="jb" id="updateNowBtn" type="button">지금 업데이트</button>
+    <button class="update-dismiss" id="updateDismissBtn" type="button" title="이 버전 알림 닫기" aria-label="이 버전 알림 닫기">×</button>
+  </div>
   <main>
     <section class="controls">
       <div class="group">
@@ -1250,6 +1356,29 @@ INDEX_HTML = r"""<!doctype html>
     </section>
   </div>
 
+  <div class="modal-backdrop" id="updateModal" aria-hidden="true">
+    <section class="modal update-modal" role="dialog" aria-modal="true" aria-labelledby="updateTitle">
+      <div class="modal-head">
+        <div class="modal-title" id="updateTitle">업데이트</div>
+        <button class="modal-close" id="updateCloseBtn" type="button" title="닫기">×</button>
+      </div>
+      <div class="modal-help" id="updateHelp"></div>
+      <div class="update-body">
+        <div class="update-notes" id="updateNotes" hidden></div>
+        <p class="update-guide" id="updateGuide" hidden></p>
+        <div class="update-progress" id="updateProgress" hidden>
+          <span class="update-spinner" aria-hidden="true"></span>
+          <span id="updatePhase"></span>
+        </div>
+        <div class="update-error" id="updateError" hidden></div>
+        <div class="modal-actions update-actions" id="updateActions">
+          <button class="ghost" id="updateLaterBtn" type="button">나중에</button>
+          <button class="jb" id="updateApplyBtn" type="button">업데이트</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <script>
     let rows = [];
     let activeTab = "all";
@@ -1277,6 +1406,10 @@ INDEX_HTML = r"""<!doctype html>
     let generateGeneration = 0;
     let activeGenerateEvents = null;
     let heartbeatTimer = null;
+    let updateInfo = null;
+    let updateApplying = false;
+    const UPDATE_DISMISS_KEY = "rrh-update-dismissed";
+    const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
     const sourceLists = {
       agency: ["금융감독원", "금융위원회", "한국은행", "한국금융연구원"],
       research: [
@@ -1804,6 +1937,171 @@ INDEX_HTML = r"""<!doctype html>
       const ping = () => fetch("/heartbeat", {method: "POST"}).catch(() => {});
       ping();
       heartbeatTimer = setInterval(ping, 60 * 1000);
+    }
+
+    /* ── 업데이트 ──────────────────────────────────────────────────────────
+       배너 → 확인 창 → POST /update/apply. 서버는 팩을 받아 SHA-256 을 검증하고 업데이터를
+       띄운 뒤 스스로 종료한다. 그때부터 이 화면이 /heartbeat 를 두드리며 기다리다, 서버가
+       새 버전으로 응답하면 스스로 새로고침한다 — 사용자가 앱을 닫거나 설치 파일을 받을 일이 없다. */
+    function readUpdateDismissed() {
+      try {
+        return localStorage.getItem(UPDATE_DISMISS_KEY) || "";
+      } catch (err) {
+        return "";
+      }
+    }
+    function writeUpdateDismissed(version) {
+      try {
+        localStorage.setItem(UPDATE_DISMISS_KEY, version || "");
+      } catch (err) {
+        /* 저장 못 해도 알림만 다시 뜰 뿐이다 */
+      }
+    }
+    function formatUpdateSize(bytes) {
+      /* 실제 팩은 수십 MB 지만, 반올림해서 "0MB" 로 보이는 것보다는 단위를 낮추는 편이 낫다. */
+      const value = Number(bytes || 0);
+      if (value <= 0) return "";
+      if (value >= 10 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(0)}MB`;
+      if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)}MB`;
+      return `${Math.max(1, Math.round(value / 1024))}KB`;
+    }
+    function renderUpdateBar() {
+      const bar = document.getElementById("updateBar");
+      const show = Boolean(updateInfo && updateInfo.available)
+        && readUpdateDismissed() !== updateInfo.latest
+        && !updateApplying;
+      bar.hidden = !show;
+      if (!show) return;
+      const detail = [`현재 ${updateInfo.current || ""}`];
+      const size = formatUpdateSize(updateInfo.size);
+      if (size) detail.push(size);
+      if (updateInfo.restart_required !== false) detail.push("적용 시 앱이 자동으로 재시작됩니다");
+      const firstNote = String(updateInfo.notes || "").split("\n")[0].trim();
+      if (firstNote) detail.push(firstNote);
+      document.getElementById("updateBarCopy").innerHTML =
+        `<strong>새 버전 ${escapeHtml(updateInfo.latest || "")}</strong>`
+        + `<span class="update-muted"> 사용 가능 · ${escapeHtml(detail.join(" · "))}</span>`;
+    }
+    async function checkForUpdate() {
+      /* 실패해도 조용하다 — /update/check 는 망이 막혀 있어도 200 + note 로 온다.
+         첫 화면에 에러를 띄우지 않는 것이 이 API 의 규격이다. */
+      try {
+        const res = await fetch("/update/check", {cache: "no-store"});
+        if (!res.ok) return;
+        updateInfo = await res.json();
+      } catch (err) {
+        return;
+      }
+      renderUpdateBar();
+    }
+    function setUpdateModalMode(mode) {
+      /* mode: "confirm" | "progress" | "error" */
+      document.getElementById("updateNotes").hidden = mode !== "confirm" || !String(updateInfo && updateInfo.notes || "").trim();
+      document.getElementById("updateGuide").hidden = mode !== "confirm";
+      document.getElementById("updateProgress").hidden = mode !== "progress";
+      document.getElementById("updateError").hidden = mode !== "error";
+      document.getElementById("updateActions").hidden = mode === "progress";
+      document.getElementById("updateLaterBtn").textContent = mode === "error" ? "닫기" : "나중에";
+      document.getElementById("updateApplyBtn").hidden = mode !== "confirm";
+      /* 적용 중에는 닫지 못하게 한다 — 이때 다른 작업을 시작하면 재시작에 함께 끊긴다. */
+      document.getElementById("updateCloseBtn").hidden = mode === "progress";
+    }
+    function openUpdateModal() {
+      if (!updateInfo || !updateInfo.available) return;
+      const size = formatUpdateSize(updateInfo.size);
+      document.getElementById("updateTitle").textContent = `버전 ${updateInfo.latest} 로 업데이트`;
+      document.getElementById("updateHelp").textContent =
+        `현재 ${updateInfo.current} · 새 버전 ${updateInfo.latest}`
+        + (updateInfo.released_at ? ` · ${updateInfo.released_at}` : "");
+      document.getElementById("updateNotes").textContent = String(updateInfo.notes || "");
+      document.getElementById("updateGuide").innerHTML =
+        (size ? `내려받을 용량 ${escapeHtml(size)}. ` : "")
+        + (updateInfo.restart_required !== false
+            ? "적용하면 앱이 스스로 종료·갱신·재시작합니다. 진행 중인 작업이 있으면 업데이트가 거부됩니다.<br>"
+            : "재시작 없이 반영됩니다.<br>")
+        + "수집 자료·실행 기록·API 키는 그대로 유지됩니다. 실패하면 이전 버전으로 자동 복구합니다.";
+      setUpdateModalMode("confirm");
+      const modal = document.getElementById("updateModal");
+      modal.classList.add("open");
+      modal.setAttribute("aria-hidden", "false");
+    }
+    function closeUpdateModal() {
+      if (updateApplying) return;
+      const modal = document.getElementById("updateModal");
+      modal.classList.remove("open");
+      modal.setAttribute("aria-hidden", "true");
+    }
+    function showUpdatePhase(message) {
+      document.getElementById("updatePhase").textContent = message;
+      setUpdateModalMode("progress");
+    }
+    function showUpdateError(message) {
+      updateApplying = false;
+      document.getElementById("updateError").textContent = message;
+      setUpdateModalMode("error");
+      renderUpdateBar();
+    }
+    /* 서버가 다시 뜰 때까지 기다린다 — 종료·교체·재기동까지 수십 초 걸릴 수 있다.
+
+       주의: /update/apply 는 응답을 먼저 내보내고 잠시 뒤에 프로세스를 끝낸다. 그래서 이 함수가
+       도는 첫 1~2초 동안은 **아직 살아 있는 옛 서버**가 정상 응답한다. 그것을 '돌아왔다'로 치면
+       교체가 끝나기도 전에 새로고침해 버린다. 서버가 한 번 끊긴 것을 보거나, 버전이 바뀐 것을
+       확인한 뒤에만 돌아온 것으로 본다. */
+    async function waitForServer(previousVersion, timeoutMs = 180000) {
+      const deadline = Date.now() + timeoutMs;
+      let sawDown = false;
+      while (Date.now() < deadline) {
+        try {
+          const res = await fetch("/heartbeat", {cache: "no-store"});
+          if (res.ok) {
+            const data = await res.json();
+            const version = String(data.version || "");
+            if (sawDown || (version && version !== previousVersion)) return version;
+          } else {
+            sawDown = true;
+          }
+        } catch (err) {
+          sawDown = true;   /* 아직 안 떴다 — 끊긴 것을 봤다는 표시이기도 하다 */
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      return null;
+    }
+    async function applyUpdate() {
+      if (updateApplying) return;
+      updateApplying = true;
+      renderUpdateBar();
+      showUpdatePhase("업데이트 파일을 받고 검증하는 중입니다… (수십 초)");
+      let payload = null;
+      try {
+        const res = await fetch("/update/apply", {method: "POST"});
+        payload = await res.json().catch(() => null);
+        if (!res.ok || !payload || payload.ok === false) {
+          /* 409 = 진행 중인 작업이 있음, 502 = 다운로드·검증 실패. 사유를 그대로 보여준다. */
+          showUpdateError((payload && payload.error) || `업데이트를 시작하지 못했습니다. (HTTP ${res.status})`);
+          return;
+        }
+      } catch (err) {
+        showUpdateError("업데이트를 시작하지 못했습니다: " + err);
+        return;
+      }
+      /* 하트비트는 그대로 둔다 — 죽은 서버로 가는 ping 은 조용히 실패하고, 새 서버가 뜨면
+         곧바로 활동 표시가 이어져 유휴 종료 타이머가 리셋된다. */
+      showUpdatePhase("앱을 다시 시작하는 중입니다… 이 창을 닫지 마세요.");
+      const previous = (updateInfo && updateInfo.current) || "";
+      const version = await waitForServer(previous);
+      if (version === null) {
+        showUpdateError("앱이 다시 뜨지 않았습니다. 이전 버전으로 되돌렸을 수 있습니다 — 시작 메뉴에서 다시 실행해 주세요.");
+        return;
+      }
+      if (version === previous) {
+        /* 되돌아왔다 — 업데이터가 새 버전을 못 띄워 이전 버전을 복원한 경우다. */
+        showUpdateError(`새 버전이 적용되지 않아 이전 버전(${version})으로 되돌아갔습니다. 업데이트 창에 남은 사유를 확인해 주세요.`);
+        return;
+      }
+      showUpdatePhase(`업데이트 완료 (${version}) — 화면을 새로 불러옵니다.`);
+      writeUpdateDismissed("");
+      setTimeout(() => window.location.reload(), 1200);
     }
     async function openItem(row) {
       if (row.file_type === "article" && isOffline()) {
@@ -2711,11 +3009,23 @@ INDEX_HTML = r"""<!doctype html>
     document.getElementById("sourceModal").addEventListener("click", e => {
       if (e.target.id === "sourceModal") closeSourceModal();
     });
+    document.getElementById("updateNowBtn").addEventListener("click", openUpdateModal);
+    document.getElementById("updateDismissBtn").addEventListener("click", () => {
+      writeUpdateDismissed(updateInfo && updateInfo.latest);
+      renderUpdateBar();
+    });
+    document.getElementById("updateCloseBtn").addEventListener("click", closeUpdateModal);
+    document.getElementById("updateLaterBtn").addEventListener("click", closeUpdateModal);
+    document.getElementById("updateApplyBtn").addEventListener("click", applyUpdate);
+    document.getElementById("updateModal").addEventListener("click", e => {
+      if (e.target.id === "updateModal") closeUpdateModal();
+    });
     document.addEventListener("keydown", e => {
       if (e.key === "Escape") {
         closeHistoryModal();
         closeKeywordModal();
         closeSourceModal();
+        closeUpdateModal();
       }
     });
     document.getElementById("headCheck").addEventListener("change", e => {
@@ -2724,6 +3034,8 @@ INDEX_HTML = r"""<!doctype html>
     });
     setDefaults();
     updateReportControls();
+    checkForUpdate();
+    setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
   </script>
 </body>
 </html>
@@ -2741,7 +3053,17 @@ class Handler(BaseHTTPRequestHandler):
             self.send_text(INDEX_HTML, "text/html; charset=utf-8")
             return
         if parsed.path == "/heartbeat":
-            self.send_json({"ok": True})
+            # version 을 함께 내려보낸다 — 업데이트 화면이 서버가 돌아오기를 기다리다가
+            # 이 값으로 "새 버전이 떴다"를 확인한다.
+            self.send_json({"ok": True, "version": updater.APP_VERSION})
+            return
+        if parsed.path == "/update/check":
+            self.send_json(updater.check())
+            return
+        if parsed.path == "/update/version":
+            self.send_json(
+                {"ok": True, "version": updater.APP_VERSION, "installed": updater.installed()}
+            )
             return
         if parsed.path == "/collect-events":
             self.handle_collect_events(parsed)
@@ -2789,8 +3111,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.handle_reset_state()
             elif self.path == "/shutdown":
                 self.handle_shutdown()
+            elif self.path == "/update/apply":
+                self.handle_update_apply()
             elif self.path == "/heartbeat":
-                self.send_json({"ok": True})
+                self.send_json({"ok": True, "version": updater.APP_VERSION})
             else:
                 self.send_json({"ok": False, "error": "not found"}, status=404)
         except Exception as exc:
@@ -3146,6 +3470,23 @@ class Handler(BaseHTTPRequestHandler):
     def handle_shutdown(self) -> None:
         self.send_json({"ok": True})
         threading.Thread(target=self.server.shutdown, daemon=True).start()
+
+    def handle_update_apply(self) -> None:
+        """업데이트 적용 — 받아서 검증하고 업데이터를 띄운 뒤 **이 프로세스를 종료**한다.
+
+        스스로 죽는 이유: 실행 중인 exe 는 Windows 가 잠그고 있어 자기 자신을 갈아끼울 수 없다.
+        """
+        try:
+            result = updater.apply(PORT, busy_reason=update_busy_reason)
+        except updater.UpdateError as exc:
+            self.send_json({"ok": False, "error": exc.message}, status=exc.status)
+            return
+        self.send_json(result)
+        # 응답을 먼저 내보내고 종료한다 — 먼저 죽으면 화면은 "실패"로 본다.
+        # os._exit 를 쓰는 것은 의도다. server.shutdown() 은 처리 중인 요청이 끝나기를 기다리고
+        # 남은 스레드가 있으면 종료가 늘어지는데, 그동안 exe 잠금이 안 풀려 업데이터가 대기하다
+        # 타임아웃된다. 어차피 저장할 상태는 이미 디스크에 있다.
+        threading.Thread(target=_exit_soon, daemon=False).start()
 
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
@@ -5128,6 +5469,28 @@ def write_items(items: list[collector.Item], csv_path: Path, xlsx_path: Path) ->
 def touch_server_activity() -> None:
     with STATE_LOCK:
         STATE["last_activity"] = time.time()
+
+
+def _exit_soon(delay: float = 1.2) -> None:
+    """응답이 나갈 틈을 준 뒤 프로세스를 끝낸다(업데이트 적용 전용)."""
+    time.sleep(delay)
+    os._exit(0)
+
+
+def update_busy_reason() -> str | None:
+    """지금 앱을 끊으면 잃는 게 있는가 — 있으면 그 사유.
+
+    업데이트는 프로세스를 죽였다 살리는 일이라, 수집·보고서 생성 도중에 걸면 사용자는 몇 분치
+    작업과 OpenAI 호출 비용을 잃는다. 그래서 진행 중이면 거부한다.
+    """
+    with STATE_LOCK:
+        collecting = bool(STATE.get("active_collect_job_id") or STATE.get("pending_run_dir"))
+        generating = bool(STATE.get("active_generate_job_id"))
+    if collecting:
+        return "자료 수집이 진행 중입니다. 끝난 뒤 업데이트해 주세요."
+    if generating:
+        return "보고서 생성이 진행 중입니다. 끝난 뒤 업데이트해 주세요."
+    return None
 
 
 def server_has_active_jobs() -> bool:

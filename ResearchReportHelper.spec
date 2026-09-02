@@ -5,7 +5,13 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('report_prompt.md', '.'), ('report_template.docx', '.')],
+    # updater/apply.ps1 은 자동 업데이트가 exe 를 갈아끼울 때 쓰는 교체 스크립트다.
+    # exe 안의 Python 은 교체 대상 자신이라 쓸 수 없어, Windows 기본 PowerShell 로 돈다.
+    datas=[
+        ('report_prompt.md', '.'),
+        ('report_template.docx', '.'),
+        ('updater/apply.ps1', 'updater'),
+    ],
     hiddenimports=['googlenewsdecoder'],
     hookspath=[],
     hooksconfig={},

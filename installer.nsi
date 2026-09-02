@@ -4,6 +4,12 @@ OutFile "dist\ResearchReportHelperSetup.exe"
 InstallDir "$LOCALAPPDATA\Programs\ResearchReportHelper"
 RequestExecutionLevel user
 
+; 버전의 단일 원본은 updater.py 의 APP_VERSION 이다. build_installer.ps1 이 거기서 읽어
+; /DAPP_VERSION=... 으로 넘긴다. 직접 makensis 를 돌릴 때를 위한 폴백만 아래에 둔다.
+!ifndef APP_VERSION
+  !define APP_VERSION "2.0.4"
+!endif
+
 !define APP_EXE "ResearchReportHelper.exe"
 !define OLD_APP_EXE "ResearchReportAutomation.exe"
 !define APP_NAME "조사연구 도우미"
@@ -47,7 +53,7 @@ Section "Install"
   Delete "$DESKTOP\${OLD_APP_NAME}.lnk"
 
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY_NAME}" "DisplayName" "${APP_NAME}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY_NAME}" "DisplayVersion" "2.0.4"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY_NAME}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY_NAME}" "Publisher" "${PUBLISHER_NAME}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY_NAME}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY_NAME}" "UninstallString" "$INSTDIR\Uninstall.exe"
@@ -72,6 +78,8 @@ skipUserDataDelete:
   RMDir "$SMPROGRAMS\${APP_NAME}"
 
   Delete "$INSTDIR\${APP_EXE}"
+  ; 자동 업데이트가 중간에 실패해 남았을 수 있는 백업. 있으면 지우고 없으면 그냥 넘어간다.
+  Delete "$INSTDIR\${APP_EXE}.bak"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
 
