@@ -44,7 +44,7 @@ import paths
 
 #: 이 빌드의 버전. **여기가 단일 원본**이다 — ``build_installer.ps1`` 이 이 값을 읽어
 #: NSIS 의 ``DisplayVersion`` 으로 넘기고, ``build_release.ps1`` 이 ``latest.json`` 에 적는다.
-APP_VERSION = "2.0.4"
+APP_VERSION = "2.0.6"
 
 #: 업데이트 manifest 주소. 배포처를 바꿀 수 있게 환경변수로 덮을 수 있다(사내 파일서버 등).
 #: 소스가 아니라 **릴리스 배포용 공개 저장소**를 가리킨다 — 클라이언트에 토큰을 심지 않으려면

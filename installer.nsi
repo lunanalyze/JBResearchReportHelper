@@ -7,7 +7,7 @@ RequestExecutionLevel user
 ; 버전의 단일 원본은 updater.py 의 APP_VERSION 이다. build_installer.ps1 이 거기서 읽어
 ; /DAPP_VERSION=... 으로 넘긴다. 직접 makensis 를 돌릴 때를 위한 폴백만 아래에 둔다.
 !ifndef APP_VERSION
-  !define APP_VERSION "2.0.4"
+  !define APP_VERSION "2.0.6"
 !endif
 
 !define APP_EXE "ResearchReportHelper.exe"
