@@ -239,7 +239,10 @@ def clean_filename(name: str, fallback: str = "download.pdf") -> str:
     name = re.sub(r"\s+", " ", name).strip().strip(".")
     if not name:
         name = fallback
-    if not name.lower().endswith(".pdf"):
+    if name.lower().endswith(".pdf"):
+        # 하나금융연구소 등은 확장자를 대문자(.PDF)로 내려준다 → 소문자로 통일
+        name = name[:-4] + ".pdf"
+    else:
         name += ".pdf"
     return name[:180]
 

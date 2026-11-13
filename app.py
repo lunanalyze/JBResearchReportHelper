@@ -4218,7 +4218,7 @@ def multipart_request(url: str, fields: dict, files: list[tuple[str, Path]], api
         chunks.extend(
             [
                 f"--{boundary}\r\n".encode("utf-8"),
-                f'Content-Disposition: form-data; name="{name}"; filename="{path.name}"\r\n'.encode("utf-8"),
+                f'Content-Disposition: form-data; name="{name}"; filename="{path.stem}{path.suffix.lower()}"\r\n'.encode("utf-8"),
                 b"Content-Type: application/pdf\r\n\r\n",
                 path.read_bytes(),
                 b"\r\n",
