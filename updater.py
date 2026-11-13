@@ -44,7 +44,7 @@ import paths
 
 #: 이 빌드의 버전. **여기가 단일 원본**이다 — ``build_installer.ps1`` 이 이 값을 읽어
 #: NSIS 의 ``DisplayVersion`` 으로 넘기고, ``build_release.ps1`` 이 ``latest.json`` 에 적는다.
-APP_VERSION = "2.0.8"
+APP_VERSION = "2.0.9"
 
 #: 업데이트 manifest 주소. 배포처를 바꿀 수 있게 환경변수로 덮을 수 있다(사내 파일서버 등).
 #: 소스가 아니라 **릴리스 배포용 공개 저장소**를 가리킨다 — 클라이언트에 토큰을 심지 않으려면
@@ -294,6 +294,22 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _clean_child_env() -> dict:
+    """업데이터에 넘길 환경변수 — PyInstaller 가 이 프로세스에 심은 ``_PYI_*`` 를 뺀다.
+
+    그대로 물려주면 업데이터가 띄운 새 exe 가 자기를 이 프로세스의 자식으로 착각해, 이 앱이
+    종료되며 지운 ``_MEI…`` 폴더에서 ``python312.dll`` 을 찾다가 죽는다.
+    ``PYINSTALLER_RESET_ENVIRONMENT=1`` 은 PyInstaller 가 '독립 실행으로 취급하라'고 제공하는 장치다.
+    """
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.upper().startswith("_PYI_") and key.upper() != "_MEIPASS2"
+    }
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return env
+
+
 def spawn(root: Path, work: Path, pack: Path, port: int, version: str) -> None:
     """업데이터 기동 — exe 안의 스크립트를 임시 폴더에 풀고 **떼어낸 프로세스**로 띄운다.
 
@@ -330,6 +346,7 @@ def spawn(root: Path, work: Path, pack: Path, port: int, version: str) -> None:
             version or "",
         ],
         cwd=str(work),
+        env=_clean_child_env(),
         creationflags=_CREATE_NEW_CONSOLE,
         close_fds=True,
     )

@@ -133,6 +133,13 @@ function Start-App {
         $psi.FileName = $ExePath
         $psi.WorkingDirectory = $Root
         $psi.UseShellExecute = $false
+        # 옛 앱(PyInstaller onefile)이 남긴 _PYI_* 변수를 지운다. 이게 남아 있으면 새 exe 가
+        # 자기를 옛 앱의 자식으로 착각해, 이미 지워진 옛 _MEI 폴더에서 python312.dll 을 찾다가
+        # "Failed to load Python DLL" 로 죽는다(2.0.8 까지의 업데이트가 전부 이렇게 실패했다).
+        foreach ($name in @($psi.EnvironmentVariables.Keys)) {
+            if ($name -like "_PYI_*" -or $name -eq "_MEIPASS2") { $psi.EnvironmentVariables.Remove($name) }
+        }
+        $psi.EnvironmentVariables["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
         $psi.EnvironmentVariables["RRA_NO_BROWSER"] = "1"
         [System.Diagnostics.Process]::Start($psi) | Out-Null
     } catch {
