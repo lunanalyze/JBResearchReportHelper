@@ -904,7 +904,8 @@ def original_url_from_google_news(http: Http, google_link: str) -> str:
     if gnewsdecoder is None:
         raise RuntimeError("googlenewsdecoder is not installed")
     result = gnewsdecoder(google_link)
-    if not result.get("status"):
+    # googlenewsdecoder 0.2.x 는 성공 여부를 "success" 로, 이전 판은 "status" 로 돌려준다.
+    if not (result.get("success") or result.get("status")):
         raise RuntimeError(f"Google News decoding failed: {result.get('message') or 'unknown error'}")
     decoded = clean_text(result.get("decoded_url") or "")
     if not is_valid_article_url(decoded):
